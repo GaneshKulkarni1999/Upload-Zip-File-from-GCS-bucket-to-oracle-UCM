@@ -1,0 +1,368 @@
+CREATE TABLE
+  `crested-medium-412504.mydata.ganesh` (Emp_name STRING,
+    Emp_id INT64,
+    Emp_Mobile INT64,
+    Emp_Joining_Date Date )
+PARTITION BY
+  EMP_Joining_Date
+  
+INSERT INTO `crested-medium-412504.mydata.ganesh`(Emp_Name,
+    Emp_id,
+    Emp_Mobile,
+    Emp_Joining_Date)
+VALUES
+  ("Ganesh",15,9168253647,'2021-01-12'),
+  ("Yash",52,4578962345,'2021-01-12'),
+  ("krishana",42,47899999,'2021-01-12');
+
+  select * from `crested-medium-412504.mydata.ganesh`;
+
+-- TO CHECK HOW MANY PARTITIONS IN YOUR PROJECT
+SELECT COUNT(partition_id) AS COUNT_OF_PARTITION 
+FROM `crested-medium-412504.mydata`.INFORMATION_SCHEMA.PARTITIONS
+WHERE PARTITION_ID IS NOT NULL;
+
+-- TO FETCH THE PARTITIONS
+SELECT * 
+FROM `mydata`.INFORMATION_SCHEMA.PARTITIONS
+WHERE PARTITION_ID IS NOT NULL;
+
+-- TO GET THE LIST OF DATASET (REGION SPECIFIC ,YOU CAN ADD )
+SELECT schema_name FROM `region-us`.INFORMATION_SCHEMA.SCHEMATA;
+
+-- Returns metadata for the specified project and region.
+SELECT * FROM crested-medium-412504.`region-us`.INFORMATION_SCHEMA.TABLES;
+
+-- Returns metadata for the specified project and dataset.
+SELECT * FROM `crested-medium-412504.mydata`.INFORMATION_SCHEMA.TABLES;
+
+-- Returns metadata for all datasets in a region.
+SELECT * FROM region-us.INFORMATION_SCHEMA.SCHEMATA;
+
+
+--schemata View
+SELECT
+  * EXCEPT (schema_owner)
+FROM
+  INFORMATION_SCHEMA.SCHEMATA;
+
+  SELECT * FROM INFORMATION_SCHEMA.SCHEMATA_LINKS WHERE schema_name = 'sharedataset';
+
+--schemata_options_view
+  SELECT
+  *
+FROM
+  INFORMATION_SCHEMA.SCHEMATA_OPTIONS
+WHERE
+  option_name = 'default_table_expiration_days';
+
+--Data retention
+  SELECT
+  COUNT(DISTINCT job_id) AS num_jobs
+FROM
+  `region-us`.INFORMATION_SCHEMA.SHARED_DATASET_USAGE
+
+
+ SELECT * FROM `region-us`.INFORMATION_SCHEMA.SCHEMATA_REPLICAS;
+
+--calculate  the  time slots
+
+ SELECT
+  SUM(total_slot_ms) / (1000 * 60 * 60 * 24 * 7) AS avg_slots
+FROM
+  `region-us`.INFORMATION_SCHEMA.JOBS
+WHERE
+  -- Filter by the partition column first to limit the amount of data scanned.
+  -- Eight days allows for jobs created before the 7 day end_time filter.
+  creation_time BETWEEN TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 8 DAY) AND CURRENT_TIMESTAMP()
+  AND job_type = 'QUERY'
+  AND statement_type != 'SCRIPT'
+  AND end_time BETWEEN TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY) AND CURRENT_TIMESTAMP();
+
+---fetch a commomn table
+select table_name from crested-medium-412504.mydata.INFORMATION_SCHEMA.TABLES where table_name in
+(select table_name from `crested-medium-412504.student`.INFORMATION_SCHEMA.TABLES
+
+-- Change a column name
+
+alter table crested-medium-412504.student.cust1 rename to emp;
+);
+
+
+ALTER TABLE crested-medium-412504.mydata.emp ADD PRIMARY KEY (employee_id) NOT ENFORCED;
+
+
+ALTER TABLE crested-medium-412504.student.emp ADD PRIMARY KEY (id) NOT ENFORCED;
+
+SELECT
+*
+-- count(total_slot_ms) AS total_slots_reserved
+FROM
+    `crested-medium-412504.region-us.INFORMATION_SCHEMA.JOBS_BY_PROJECT`
+
+
+SELECT
+*
+-- count(total_slot_ms) AS total_slots_reserved
+FROM
+    `crested-medium-412504.mydata.INFORMATION_SCHEMA.JOBS_BY_PROJECT`
+
+
+select * from crested-medium-412504.mydata.ganesh
+
+____________________________________________________________
+
+partition clustering
+
+
+/*
+Author : @ Anjan GCP Data Engineering
+
+Created SQLs to Demo  BigQuery Table Partitioning
+  1. TIME UNIT (MONTHLY)
+  2. INTEGER RANGE
+  3. INGESTION TIME UNIT
+
+*/
+
+/************** Time Unit Partitioning  *******************/
+
+-- Query this table to understand the data distribution across different dates
+
+SELECT  min(start_time), max(start_time) FROM `gcp-data-eng-374308.bigquery_demos.bikeshare_trips`;
+
+select DATE_TRUNC(start_time, DAY) as year,count(*) from `gcp-data-eng-374308.bigquery_demos.bikeshare_trips`
+group by 1 order by 1;
+
+select DATE_TRUNC(start_time, MONTH) as year,count(*) from `gcp-data-eng-374308.bigquery_demos.bikeshare_trips`
+group by 1 order by 1;
+
+select DATE_TRUNC(start_time, YEAR) as year,count(*) from `gcp-data-eng-374308.bigquery_demos.bikeshare_trips`
+group by 1 order by 1;
+
+--Create MONTHLY Partitioned table based on TIME UNIT columns
+create or replace table bigquery_demos.bikeshare_trips_p
+(
+trip_id	INT64,				
+subscriber_type	STRING,		
+bikeid	STRING,			
+start_time	TIMESTAMP,
+start_station_id	INT64,			
+start_station_name	STRING,				
+end_station_id	STRING,				
+end_station_name	STRING,				
+duration_minutes	INT64	
+)
+PARTITION BY
+  TIMESTAMP_TRUNC(start_time, MONTH);
+
+--Create partition table usning SQL query result
+
+create or replace table bigquery_demos.bikeshare_trips_sql
+(
+trip_id	INT64,				
+subscriber_type	STRING,		
+bikeid	STRING,			
+start_time	TIMESTAMP,
+start_station_id	INT64,			
+start_station_name	STRING,				
+end_station_id	STRING,				
+end_station_name	STRING,				
+duration_minutes	INT64	
+)
+PARTITION BY
+  start_time
+  AS (SELECT  TIMESTAMP_TRUNC(start_time , DAY)
+      FROM `gcp-data-eng-374308.bigquery_demos.bikeshare_trips`);
+  
+--Insert data into Partitioned table  
+insert into bigquery_demos.bikeshare_trips_p
+select * from bigquery_demos.bikeshare_trips;
+
+-- Query non Partitioned table
+select * from bigquery_demos.bikeshare_trips
+where start_time > '2020-12-01 00:00:00 UTC';
+
+-- Query partioned table and see the difference
+select * from bigquery_demos.bikeshare_trips_p
+where start_time > '2020-12-01 00:00:00 UTC';
+
+
+/************** Integer Range Partitioning  *******************/
+
+-- Query this table to understand the data distribution across INTEGER type column
+SELECT id,
+text,
+score,
+creation_date  
+FROM `bigquery-public-data.stackoverflow.comments`;
+
+--Creat Partitioned table
+create or replace table bigquery_demos.stackoverflow_comments_p
+(
+  id INT64,
+  text STRINg,
+  score INT64,
+  creation_date TIMESTAMP
+)
+partition by RANGE_BUCKET(id, GENERATE_ARRAY(0, 140390264, 100000));
+
+--Insert data into partitioned table
+insert into bigquery_demos.stackoverflow_comments_p
+SELECT id,
+text,
+score,
+creation_date  
+FROM `bigquery-public-data.stackoverflow.comments`;
+
+
+--Query non Partitioned table
+SELECT id,
+text,
+score,
+creation_date  
+FROM `bigquery-public-data.stackoverflow.comments` 
+where id between 1000 and 100000;
+
+--Query Partitioned table
+SELECT id,
+text,
+score,
+creation_date  
+FROM `bigquery_demos.stackoverflow_comments_p` 
+where id between 1000 and 100000;
+
+/************** Data Ingestion Time Unit Partitioning  *******************/
+
+--See the data distribution across HOUR/DAY/MONTH/YEAR ?
+SELECT TIMESTAMP_TRUNC(trip_start_timestamp, HOUR),count(*)
+ FROM `bigquery-public-data.chicago_taxi_trips.taxi_trips`
+ where trip_start_timestamp > '2021-10-01 18:15:00 UTC'
+ group by 1
+ order by 1 desc;
+
+--Create partition table based on ingestion time with HOUR as partition criteria
+create or replace table bigquery_demos.taxi_trips
+(
+unique_key       STRING,
+taxi_id       STRING,
+trip_start_timestamp       TIMESTAMP,
+trip_end_timestamp       TIMESTAMP,
+trip_seconds       INT64,
+trip_miles       FLOAT64,
+pickup_census_tract       INT64,
+dropoff_census_tract       INT64,
+pickup_community_area       INT64,
+dropoff_community_area       INT64,
+fare       FLOAT64,
+tips       FLOAT64,
+tolls       FLOAT64,
+extras       FLOAT64,
+trip_total       FLOAT64,
+payment_type       STRING,
+company       STRING,
+pickup_latitude       FLOAT64,
+pickup_longitude       FLOAT64,
+pickup_location       STRING,
+dropoff_latitude       FLOAT64,
+dropoff_longitude       FLOAT64,
+dropoff_location       STRING
+)
+PARTITION BY
+ DATETIME_TRUNC(_PARTITIONTIME,HOUR)
+  OPTIONS (
+    partition_expiration_days = 3,
+    require_partition_filter = TRUE);
+
+-- Query Partitioned table
+SELECT
+  *
+FROM
+  bigquery_demos.taxi_trips
+WHERE
+  _PARTITIONTIME > TIMESTAMP_SUB(TIMESTAMP('2016-04-15'), INTERVAL 2 HOUR);
+
+  SELECT
+  *
+FROM
+  bigquery_demos.taxi_trips
+WHERE
+  _PARTITIONTIME BETWEEN TIMESTAMP('2016-04-15') AND TIMESTAMP('2016-04-14');
+
+  -- If you want to update partition filter requirement or expiration  use below DDLs
+
+ALTER TABLE bigquery_demos.taxi_trips
+SET OPTIONS (
+    -- Sets partition expiration to 5 days
+    partition_expiration_days = 5,
+    require_partition_filter = false);
+___________________________________________________________________
+
+SELECT
+  project_id,
+  job_id,
+  user_email,
+  creation_time,
+  start_time,
+  end_time,
+  total_slot_ms,
+  total_bytes_billed,
+  total_bytes_processed,
+  --billing_tier,
+  cache_hit,
+  query
+FROM
+  `region-us`.INFORMATION_SCHEMA.JOBS
+WHERE
+  creation_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+ORDER BY
+  total_bytes_billed DESC
+LIMIT
+  10;
+
+--- check a current time stamp
+  select TIMESTAMP_TRUNC(current_timestamp(), Month)
+
+_____________________________________________________________
+
+create table `crested-medium-412504.mydata.text`
+(
+  ID INT64,name STRING,Department_Name STRING ,
+Age INT64);
+
+
+INSERT INTO `crested-medium-412504.mydata.text`
+values
+(12,"Ganesh","IT",25),(15,"Saurav","Finance",26);
+
+select * from  `crested-medium-412504.mydata.text`
+
+DROP TABLE `crested-medium-412504.student.new_table`
+
+
+_______________________________________________________
+
+SELECT
+  project_id,
+  job_id,
+  user_email,
+  creation_time,
+  start_time,
+  end_time,
+  total_slot_ms,
+  total_bytes_billed,
+  total_bytes_processed,
+  --billing_tier,
+  cache_hit,
+  query
+FROM
+  `region-us`.INFORMATION_SCHEMA.JOBS
+WHERE
+  creation_time >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+ORDER BY
+  total_bytes_billed DESC
+LIMIT
+  10;
+
+--- check a current time stamp
+  select TIMESTAMP_TRUNC(current_timestamp(), Month)
